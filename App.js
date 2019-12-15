@@ -19,11 +19,7 @@ import {
 } from 'react-native';
 
 import {
-  Header,
-  LearnMoreLinks,
-  Colors,
-  DebugInstructions,
-  ReloadInstructions,
+  Colors
 } from 'react-native/Libraries/NewAppScreen';
 
 import {PermissionsAndroid} from 'react-native';
@@ -80,23 +76,27 @@ class Speed extends Component {
         Geolocation.getCurrentPosition(
           (position) => {
             const reads = this.state.reads
-            console.log(reads)
             const metersPerSecond = position.coords.speed;
-            if (metersPerSecond < 0) {
-              console.log('update state')
+            if (metersPerSecond < 0 || position.coords.accuracy > 20) {
               this.setState({ reads: reads + 1 })
               return;
             }
             this.setState({
+              json: JSON.stringify(position),
               metersPerSecond: Math.round(metersPerSecond),
-              milesPerHour: Math.round(metersPerSecond * 2.237),
+              milesPerHour: Math.round(metersPerSecond * 2.23694),
               reads: reads + 1
             })
           },
           (error) => {
               console.log(error.code, error.message);
           },
-          { enableHighAccuracy: true, timeout: 500, maximumAge: 500 }
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0,
+            distanceFilter: 0
+          }
         )
 
       ), 1000);
@@ -108,7 +108,7 @@ class Speed extends Component {
       <View>
         <Gavin text={this.state.milesPerHour}></Gavin>
         <View style={styles.footer}>
-          <Text>{this.state.metersPerSecond} meters per second</Text>
+          <Text>{this.state.json}</Text>
           <Text>{this.state.reads} reads</Text>
         </View>
       </View>
@@ -140,8 +140,8 @@ const styles = StyleSheet.create({
   big: {
     fontSize: 80,
     textAlign: 'center',
-    paddingTop: '25%',
-    paddingBottom: '25%'
+    paddingTop: '15%',
+    paddingBottom: '15%'
   },
   smallFont: {
     fontSize: 12
