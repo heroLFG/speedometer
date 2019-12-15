@@ -26,27 +26,71 @@ import {
   ReloadInstructions,
 } from 'react-native/Libraries/NewAppScreen';
 
+import {PermissionsAndroid} from 'react-native';
+
+async function requestFineLocationPermission() {
+  try {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      {
+        title: 'Speedometer Location Permission',
+        message:
+          'gavin wants your info ' +
+          'to do cool things.',
+        buttonNeutral: 'Ask Me Later',
+        buttonNegative: 'Cancel',
+        buttonPositive: 'OK',
+      },
+    );
+    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+      console.log('You can use the fine location');
+    } else {
+      console.log('fine location permission denied');
+    }
+  } catch (err) {
+    console.warn(err);
+  }
+}
+
+class Gavin extends Component {
+  render() {
+    return (
+      <Text style={styles.big}>{this.props.text}<Text style={styles.smallFont}>mph</Text></Text>
+    )
+  }
+}
+
 class Speed extends Component {
 
   constructor(props) {
     super(props);
-    this.state = { metersPerSecond: -1, milesPerHour: -1 };
+    requestFineLocationPermission();
+    this.state = { reads: 0, metersPerSecond: -1, milesPerHour: -1 };
+  }
+
+  componentWillUnmount() {
+    clearInterval(this.intervalID);
   }
 
   componentDidMount() {
     const hasLocationPermission = true;
 
     if (hasLocationPermission) {
-      setInterval(() => (
+      this.intervalID = setInterval(() => (
         Geolocation.getCurrentPosition(
           (position) => {
+            const reads = this.state.reads
+            console.log(reads)
             const metersPerSecond = position.coords.speed;
             if (metersPerSecond < 0) {
+              console.log('update state')
+              this.setState({ reads: reads + 1 })
               return;
             }
             this.setState({
-              metersPerSecond: metersPerSecond,
-              milesPerHour: metersPerSecond * 2.237
+              metersPerSecond: Math.round(metersPerSecond),
+              milesPerHour: Math.round(metersPerSecond * 2.237),
+              reads: reads + 1
             })
           },
           (error) => {
@@ -62,8 +106,11 @@ class Speed extends Component {
   render() {
     return (
       <View>
-        <Text>{this.state.metersPerSecond} meters per second</Text>
-        <Text>{this.state.milesPerHour} miles per hour</Text>
+        <Gavin text={this.state.milesPerHour}></Gavin>
+        <View style={styles.footer}>
+          <Text>{this.state.metersPerSecond} meters per second</Text>
+          <Text>{this.state.reads} reads</Text>
+        </View>
       </View>
     )
   }
@@ -90,6 +137,15 @@ class App extends Component {
 };
 
 const styles = StyleSheet.create({
+  big: {
+    fontSize: 80,
+    textAlign: 'center',
+    paddingTop: '25%',
+    paddingBottom: '25%'
+  },
+  smallFont: {
+    fontSize: 12
+  },
   scrollView: {
     backgroundColor: Colors.lighter,
   },
@@ -125,6 +181,7 @@ const styles = StyleSheet.create({
     padding: 4,
     paddingRight: 12,
     textAlign: 'right',
+    bottom: 5
   },
 });
 
