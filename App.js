@@ -1,188 +1,152 @@
 /**
  * Sample React Native App
  * https://github.com/facebook/react-native
- *
- * @format
  * @flow
  */
 
 import React, { Component } from 'react';
+import {
+  Button,
+  PermissionsAndroid,
+  Platform,
+  StyleSheet,
+  Text,
+  ToastAndroid,
+  View
+} from 'react-native';
 import Geolocation from 'react-native-geolocation-service';
 
-import {
-  SafeAreaView,
-  StyleSheet,
-  ScrollView,
-  View,
-  Text,
-  StatusBar,
-} from 'react-native';
+export default class App extends Component<{}> {
+  watchId = null;
 
-import {
-  Colors
-} from 'react-native/Libraries/NewAppScreen';
+  state = {
+    loading: false,
+    updatesEnabled: false,
+    location: {}
+  };
 
-import {PermissionsAndroid} from 'react-native';
+  hasLocationPermission = async () => {
+    if (Platform.OS === 'ios' ||
+        (Platform.OS === 'android' && Platform.Version < 23)) {
+      return true;
+    }
 
-async function requestFineLocationPermission() {
-  try {
-    const granted = await PermissionsAndroid.request(
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-      {
-        title: 'Speedometer Location Permission',
-        message:
-          'gavin wants your info ' +
-          'to do cool things.',
-        buttonNeutral: 'Ask Me Later',
-        buttonNegative: 'Cancel',
-        buttonPositive: 'OK',
-      },
+    const hasPermission = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
     );
-    if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-      console.log('You can use the fine location');
-    } else {
-      console.log('fine location permission denied');
+
+    if (hasPermission) return true;
+
+    const status = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION
+    );
+
+    if (status === PermissionsAndroid.RESULTS.GRANTED) return true;
+
+    if (status === PermissionsAndroid.RESULTS.DENIED) {
+      ToastAndroid.show('Location permission denied by user.', ToastAndroid.LONG);
+    } else if (status === PermissionsAndroid.RESULTS.NEVER_ASK_AGAIN) {
+      ToastAndroid.show('Location permission revoked by user.', ToastAndroid.LONG);
     }
-  } catch (err) {
-    console.warn(err);
-  }
-}
 
-class Gavin extends Component {
+    return false;
+  }
+
+  getLocation = async () => {
+    const hasLocationPermission = await this.hasLocationPermission();
+
+    if (!hasLocationPermission) return;
+
+    this.setState({ loading: true }, () => {
+      Geolocation.getCurrentPosition(
+        (position) => {
+          this.setState({ location: position, loading: false });
+          console.log(position);
+        },
+        (error) => {
+          this.setState({ location: error, loading: false });
+          console.log(error);
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 10000, distanceFilter: 50, forceRequestLocation: true }
+      );
+    });
+  }
+
+  getLocationUpdates = async () => {
+    const hasLocationPermission = await this.hasLocationPermission();
+
+    if (!hasLocationPermission) return;
+
+    this.setState({ updatesEnabled: true }, () => {
+      this.watchId = Geolocation.watchPosition(
+        (position) => {
+          this.setState({ location: position });
+          console.log(position);
+        },
+        (error) => {
+          this.setState({ location: error });
+          console.log(error);
+        },
+        { enableHighAccuracy: true, distanceFilter: 0, interval: 1000, fastestInterval: 100 }
+      );
+    });
+  }
+
+  removeLocationUpdates = () => {
+      if (this.watchId !== null) {
+          Geolocation.clearWatch(this.watchId);
+          this.setState({ updatesEnabled: false })
+      }
+  }
+
   render() {
-    return (
-      <Text style={styles.big}>{this.props.text}<Text style={styles.smallFont}>mph</Text></Text>
-    )
-  }
-}
-
-class Speed extends Component {
-
-  constructor(props) {
-    super(props);
-    requestFineLocationPermission();
-    this.state = { reads: 0, metersPerSecond: -1, milesPerHour: -1 };
-  }
-
-  componentWillUnmount() {
-    clearInterval(this.intervalID);
-  }
-
-  componentDidMount() {
-    const hasLocationPermission = true;
-
-    if (hasLocationPermission) {
-      this.intervalID = setInterval(() => (
-        Geolocation.getCurrentPosition(
-          (position) => {
-            const reads = this.state.reads
-            const metersPerSecond = position.coords.speed;
-            if (metersPerSecond < 0 || position.coords.accuracy > 20) {
-              this.setState({ reads: reads + 1 })
-              return;
-            }
-            this.setState({
-              json: JSON.stringify(position),
-              metersPerSecond: Math.round(metersPerSecond),
-              milesPerHour: Math.round(metersPerSecond * 2.23694),
-              reads: reads + 1
-            })
-          },
-          (error) => {
-              console.log(error.code, error.message);
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 10000,
-            maximumAge: 0,
-            distanceFilter: 0
-          }
-        )
-
-      ), 1000);
+    const { loading, location, updatesEnabled } = this.state;
+    let speed = <Text>Speed not available</Text>
+    if (location.coords) {
+      speed = <Text style={styles.big}>{Math.round(location.coords.speed * 2.23694)} mph</Text>
     }
-  }
-
-  render() {
     return (
-      <View>
-        <Gavin text={this.state.milesPerHour}></Gavin>
-        <View style={styles.footer}>
-          <Text>{this.state.json}</Text>
-          <Text>{this.state.reads} reads</Text>
+      <View style={styles.container}>
+        <View>
+          {speed}
+        </View>
+        <Button title='Get Location' onPress={this.getLocation} disabled={loading || updatesEnabled} />
+        <View style={styles.buttons}>
+            <Button title='Start Observing' onPress={this.getLocationUpdates} disabled={updatesEnabled} />
+            <Button title='Stop Observing' onPress={this.removeLocationUpdates} disabled={!updatesEnabled} />
+        </View>
+
+        <View style={styles.result}>
+            <Text>{JSON.stringify(location, null, 4)}</Text>
         </View>
       </View>
-    )
-  }
-}
-
-class App extends Component { 
-  render() {
-    return (
-      <>
-        <StatusBar barStyle="dark-content" />
-        <SafeAreaView>
-          <ScrollView
-            contentInsetAdjustmentBehavior="automatic"
-            style={styles.scrollView}>
-            <View style={styles.body}>
-              <Speed></Speed>
-            </View>
-          </ScrollView>
-        </SafeAreaView>
-      </>
     );
   }
-  
-};
+}
 
 const styles = StyleSheet.create({
   big: {
-    fontSize: 80,
-    textAlign: 'center',
-    paddingTop: '15%',
-    paddingBottom: '15%'
+    fontSize: 50,
+    paddingBottom: 15
   },
-  smallFont: {
-    fontSize: 12
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F5FCFF',
+    paddingHorizontal: 12
   },
-  scrollView: {
-    backgroundColor: Colors.lighter,
+  result: {
+      borderWidth: 1,
+      borderColor: '#666',
+      width: '100%',
+      paddingHorizontal: 16
   },
-  engine: {
-    position: 'absolute',
-    right: 0,
-  },
-  body: {
-    backgroundColor: Colors.white,
-  },
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-    color: Colors.black,
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-    color: Colors.dark,
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-  footer: {
-    color: Colors.dark,
-    fontSize: 12,
-    fontWeight: '600',
-    padding: 4,
-    paddingRight: 12,
-    textAlign: 'right',
-    bottom: 5
-  },
+  buttons: {
+      flexDirection: 'row',
+      justifyContent: 'space-around',
+      alignItems: 'center',
+      marginVertical: 12,
+      width: '100%'
+  }
 });
-
-export default App;
