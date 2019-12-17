@@ -14,7 +14,9 @@ import {
   ToastAndroid,
   View
 } from 'react-native';
+
 import Geolocation from 'react-native-geolocation-service';
+import KeepAwake from 'react-native-keep-awake';
 
 export default class App extends Component<{}> {
   watchId = null;
@@ -119,6 +121,7 @@ export default class App extends Component<{}> {
         <View style={styles.result}>
             <Text>{JSON.stringify(location, null, 4)}</Text>
         </View>
+        <KeepAwake />
       </View>
     );
   }
